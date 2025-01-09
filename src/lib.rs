@@ -1,24 +1,26 @@
 use std::{convert::Infallible, sync::Arc};
 
 use bytes::Bytes;
-use http_body_util::Full;
+use http_body_util::{BodyExt, Full};
 use hyper::{
   body::Incoming, HeaderMap, Method, Request, Response
 };
-use reqwest::Client;
+use reqwest::{Client, Error};
 use tokio::sync::RwLock;
 
 const THRESHOLD: u64 = 5000;
 pub struct Worker {
   pub addr: String,
-  pub cons_num: u64
+  pub cons_num: u64,
+  pub available: bool
 }
 
 impl Worker {
   pub fn new(addr: String) -> Self {
     Self {
       addr,
-      cons_num: 0
+      cons_num: 0,
+      available: true
     }
   }
 
@@ -41,18 +43,25 @@ pub type RwProxy = Arc<RwLock<Proxy>>;
 
 pub struct Proxy {
   workers: Vec<Worker>,
-  pub current: usize
+  pub current: usize,
+  pub available: bool
 }
 
 impl Proxy {
   pub fn new(workers: Vec<Worker>) -> Self {
     Self {
       workers,
-      current: 0
+      current: 0,
+      available: true
     }
   }
 
-  pub async fn handle_req(&mut self, req: Request<Incoming>) -> Result<Response<Full<Bytes>>, Infallible> {
+  pub fn decide(&mut self) -> &mut Self {
+    if let None = self.workers.iter().find(|w| w.available) {
+      self.available = false;
+      return self;
+    }
+
     let index_worker_tup = self.workers.iter()
       .enumerate()
       .find(|(i, w)| {
@@ -67,28 +76,47 @@ impl Proxy {
           None => !w.is_busy()
         }
       });
-    
-    match index_worker_tup {
-        Some((index, _)) => {
-          self.current = index;
-          let worker = self.workers.get_mut(index).unwrap();
-          execute(worker.addr.clone(), req);
-        },
-        None => {
-          hhdh
-        }
+
+      let mut set_next = || self.current = (self.current + 1) % self.workers.len();
+
+      match index_worker_tup {
+        Some((index, worker)) if worker.available => self.current = index,
+        Some((_, _)) => set_next(),
+        None => set_next()
+      }
+
+      self
+  }
+
+  pub async fn execute(&mut self, req: Request<Incoming>) -> Result<reqwest::Response, reqwest::Error> {
+    if !self.available {
+      panic!("Services not responding");
     }
     
-    Ok(Response::new(Full::new(Bytes::from("Hello, World!"))))
+    let client = Client::new();
+    let worker = self.workers.get_mut(self.current).unwrap();
+    let mut url = worker.addr.clone();
+
+    if let Some(rest) = req.uri().path_and_query() {
+      url = url + rest.as_str();
+    }
+  
+    let method = req.method().clone();
+    let headers = req.headers().clone();
+    let body = req.into_body().collect().await.expect("Collecting bytes error");
+  
+    worker.increase();
+  
+    let res = client.request(method, url)
+      .headers(headers)
+      .body(body.to_bytes())
+      .send()
+      .await;
+  
+    worker.decrease();
+  
+    res
   }
 }
 
 
-async fn execute(host: String, req: Request<Incoming>) -> Result<reqwest::Response, reqwest::Error> {
-  let client = Client::new();
-  client.request(req.method(), url)
-    .headers(req.headers())
-    .body(req.body())
-    .send()
-    .await
-}

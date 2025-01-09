@@ -36,8 +36,10 @@ async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
   }
 }
 
-async fn handle_req<'a>(req: Request<Incoming>, proxy: RwProxy) -> Result<Response<Full<Bytes>>, Infallible> {
+async fn handle_req(req: Request<Incoming>, proxy: RwProxy) -> Result<reqwest::Response, reqwest::Error> {
   proxy.write()
     .await
-    .handle_req(req)
+    .decide()
+    .execute(req)
+    .await
 }

@@ -6,6 +6,8 @@ use hyper::{body::Incoming, HeaderMap, Method, Request};
 use reqwest::Client;
 use tokio::sync::RwLock;
 
+pub mod app;
+
 pub type ExecResult = Result<reqwest::Response, reqwest::Error>;
 const CONNECTION_LIMIT: u64 = 2;
 pub struct Worker {

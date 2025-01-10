@@ -7,17 +7,42 @@ use hyper::{body::Incoming, service::service_fn, Request, Response};
 use hyper_server::{Proxy, RwProxy, Worker};
 use hyper_util::rt::TokioIo;
 use tokio::{net::TcpListener, sync::RwLock};
+use collect_args::Args;
+
+const PORT: u16 = 3000;
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
-    let addr = SocketAddr::from(([127, 0, 0, 1], 3000));
+    let addr = SocketAddr::from(([127, 0, 0, 1], PORT));
     let listener = TcpListener::bind(addr).await?;
 
-    let workers = vec![
-        Worker::new(String::from("http://localhost:3001")),
-        Worker::new(String::from("http://localhost:3002")),
-        Worker::new(String::from("http://localhost:3003")),
-    ];
+    let args = Args::collect();
+    let (_, ports) = args.input("ports");
+
+    let empty_port_list_msg = "Enter at least one port";
+
+    let ports: Vec<u16> = match ports {
+      Some(ports) if ports != "" => {
+        ports.trim()
+          .split(" ")
+          .map(|port| port.parse::<u16>().expect("Port value is not a number"))
+          .collect()
+      },
+      None => {
+        panic!("{empty_port_list_msg}")
+      },
+      _ => {
+        panic!("{empty_port_list_msg}")
+      }
+    };
+
+    if ports[0] == PORT {
+      panic!("Cannot use port {}", PORT);
+    } 
+
+    let workers = ports.iter()
+      .map(|port| Worker::new(format!("http://localhost:{}", port)))
+      .collect();
 
     let proxy = Arc::new(RwLock::new(Proxy::new(workers)));
 

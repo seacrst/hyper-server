@@ -1,11 +1,9 @@
 use collect_args::Args;
+use hyper_server::app::App;
 
-fn main() {
-
+#[tokio::main]
+async fn main() {
   let args = Args::collect();
-
-  
-  let (_, ports) = args.input("ports");
-  
-  print!("{}", ports.unwrap_or(String::from("No ports")));
+  let app = App::build("127.0.0.1:3000").await.expect("Failed to build app");
+  app.run().await.expect("Failed to run app")
 }

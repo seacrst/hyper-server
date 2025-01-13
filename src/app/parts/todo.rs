@@ -1,12 +1,14 @@
-use uuid::Uuid as Id;
+use serde::Serialize;
 
+#[derive(serde::Deserialize, Serialize)]
 pub struct Todo {
-  id: Id,
-  title: String,
-  description: String
+  pub id: String,
+  pub title: String,
+  pub description: String
 }
 
+#[derive(serde::Deserialize, Serialize)]
 pub struct CreateTodo {
-  title: String,
-  description: String
+  pub title: String,
+  pub description: String
 }

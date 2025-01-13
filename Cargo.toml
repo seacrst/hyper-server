@@ -4,17 +4,19 @@ version = "0.1.0"
 edition = "2021"
 
 [dependencies]
+async-trait = "0.1.85"
 axum = "0.8.1"
 bytes = "1.8.0"
 collect_args = "0.0.2"
 http-body-util = "0.1.2"
 hyper = { version = "1.5.0", features = ["full"] }
 hyper-util = { version = "0.1.10", features = ["full"] }
+redis = { version = "0.28.1", features = ["tokio-comp"] }
 reqwest = "0.12.12"
 rustls = "0.23.16"
 serde = { version = "1", features = ["derive"] }
 serde_json = "1.0.132"
 tokio = { version = "1.41.0", features = ["full"] }
 tokio-rustls = {version = "0.26.0"}
-uuid = "1.11.1"
+uuid = {version = "1.11.1", features = ["v4"]}
 webpki-roots = "0.26.6"

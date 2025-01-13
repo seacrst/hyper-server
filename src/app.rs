@@ -1,16 +1,16 @@
 use std::{error::Error, sync::Arc};
 
 use services::{RedisStore, TodoStore};
-use tokio::net::TcpListener;
-use axum::{routing::get, serve::Serve, Router};
+use tokio::{net::TcpListener, sync::RwLock};
+use axum::{routing::{delete, get, patch, post}, serve::Serve, Router};
 
-use handlers::todos::{
-  get_all, get_one
-};
+use handlers::todos::{create_todo, get_all, get_one, remove_todo, update_todo};
 
 pub mod services;
 mod handlers;
 mod parts;
+
+pub type TodoState = Arc<RwLock<dyn TodoStore + Send + Sync>>;
 
 const REDIS_HOST: &str = "127.0.0.1";
 
@@ -20,19 +20,22 @@ pub struct App {
 }
 
 impl App {
-  pub async fn build(addr: &str) -> Result<App, Box<dyn Error>> {
-    let todo_store: Arc<tokio::sync::RwLock<dyn TodoStore + Send + Sync>> = Arc::new(
-      tokio::sync::RwLock::new(
-        RedisStore::try_new(REDIS_HOST.to_string())
+  pub async fn build(config: AppConfig<'_>) -> Result<App, Box<dyn Error>> {
+    let todo_store: TodoState = Arc::new(
+      RwLock::new(
+        RedisStore::try_new(REDIS_HOST.to_string(), config.clear_store)
       )
     );
     
     let router = Router::new()
+    .route("/todo", post(create_todo))
       .route("/todos", get(get_all))
       .route("/todos/{id}", get(get_one))
+      .route("/todo/{id}", patch(update_todo))
+      .route("/todo/{id}", delete(remove_todo))
       .with_state(todo_store);
 
-      let tcp = TcpListener::bind(addr).await?;
+      let tcp = TcpListener::bind(config.addr).await?;
       let addr = tcp.local_addr()?.to_string();
       let server = axum::serve(tcp, router);
 
@@ -44,3 +47,9 @@ impl App {
     self.server.await
   }
 }
+
+pub struct AppConfig<'a> {
+  pub addr: &'a str,
+  pub clear_store: bool
+}
+

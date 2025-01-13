@@ -6,9 +6,10 @@ async fn main() {
   let args = Args::collect();
 
   let (_, flush_all) = args.flag("-f");
+  let (_, port) = args.input("-p");
 
   let config = AppConfig {
-    addr: "127.0.0.1:3000",
+    addr: format!("127.0.0.1:{}", port.expect("Port is missing")),
     clear_store: flush_all
   };
 
